@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Grim on the Bell Tower — Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0b0e1a;            /* midnight sky */
+    --deep:#131a30;
+    --moon:#c9d6ee;
+    --parchment:#e7dcc0;
+    --candle:#f2b04a;
+    --candle-hot:#ffd98a;
+    --blood:#a3202f;
+    --blood-deep:#5f0e18;
+    --ghost:#8fd8cc;
+    --panel:rgba(12,15,28,.9);
+    --line:rgba(231,220,192,.18);
+    --disp:'Pirata One', 'Palatino Linotype', Georgia, serif;
+    --body:'IM Fell English', Georgia, 'Times New Roman', serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0; overflow:hidden;}
+  body{
+    font-family:var(--body); color:var(--parchment); background:var(--ink);
+    display:flex; flex-direction:column;
+  }
+
+  /* ------------ SCENE ------------ */
+  #scene{position:relative; flex:1; min-height:0; overflow:hidden;
+    background:linear-gradient(#05070f 0%, #0b0e1a 45%, #1a2138 78%, #232a44 100%);
+    transition:background 2.5s ease;}
+  body.day #scene{background:linear-gradient(#2a3350 0%, #4a4f6e 40%, #8a7a72 78%, #b08d63 100%);}
+  #stars{position:absolute; inset:0; transition:opacity 2.5s;}
+  body.day #stars{opacity:0;}
+  .star{position:absolute; width:2px; height:2px; border-radius:50%; background:#fff; opacity:.7; animation:twk 3s infinite;}
+  @keyframes twk{0%,100%{opacity:.2}50%{opacity:.9}}
+  #moon{position:absolute; top:6%; right:10%; width:64px; height:64px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%, #f4f7ff, var(--moon) 60%, #93a3c4);
+    box-shadow:0 0 44px 10px rgba(201,214,238,.35); transition:all 2.5s;}
+  body.day #moon{background:radial-gradient(circle at 40% 35%, #fff3cf, #f0c05a 60%, #d99b30);
+    box-shadow:0 0 60px 18px rgba(240,192,90,.45);}
+  #townshade{position:absolute; inset:0; background:#02030a; opacity:0; pointer-events:none; transition:opacity 1.2s;}
+  body.midnight #townshade{opacity:.55;}
+
+  /* drifting motes / embers */
+  #motes{position:absolute; inset:0; pointer-events:none; overflow:hidden;}
+  .mote{position:absolute; bottom:-10px; width:3px; height:3px; border-radius:50%;
+    background:radial-gradient(circle,var(--candle-hot),transparent 70%); opacity:.0;
+    animation:rise linear infinite;}
+  body.day .mote{background:radial-gradient(circle,#fff6d8,transparent 70%);}
+  @keyframes rise{
+    0%{transform:translateY(0) translateX(0); opacity:0;}
+    12%{opacity:.7;}
+    88%{opacity:.5;}
+    100%{transform:translateY(-92vh) translateX(30px); opacity:0;}
+  }
+  /* ground fog */
+  #fog{position:absolute; left:-10%; right:-10%; bottom:0; height:22%; pointer-events:none;
+    background:linear-gradient(to top, rgba(180,190,210,.16), transparent);
+    filter:blur(6px); opacity:.6; animation:drift 18s ease-in-out infinite alternate;}
+  body.day #fog{background:linear-gradient(to top, rgba(255,238,205,.22), transparent);}
+  @keyframes drift{from{transform:translateX(-3%)}to{transform:translateX(3%)}}
+
+  /* silhouette rooftops */
+  #roofs{position:absolute; left:0; right:0; bottom:0; height:16%; pointer-events:none; opacity:.92;}
+
+  /* ------------ CLOCK ------------ */
+  #clockWrap{position:absolute; left:50%; top:47%; transform:translate(-50%,-50%);
+    width:min(88vw, 62vh); aspect-ratio:1/1;}
+  #clockSvg{position:absolute; inset:22%; opacity:.96;}
+  .face{fill:#151a2c; stroke:var(--parchment); stroke-width:2; filter:drop-shadow(0 0 18px rgba(0,0,0,.7));}
+  body.day .face{fill:#241f2c;}
+  .numeral{fill:var(--parchment); font-family:var(--disp); font-size:15px; text-anchor:middle; dominant-baseline:middle; opacity:.9;}
+  .tickmark{stroke:var(--parchment); stroke-width:1; opacity:.45;}
+  #hourHand,#minHand{stroke:var(--candle); stroke-linecap:round; transform-origin:100px 100px;
+    transition:transform .5s cubic-bezier(.4,2.2,.6,1);}
+  #hourHand{stroke-width:5;} #minHand{stroke-width:3;}
+  #clockPin{fill:var(--blood);}
+  body.midnight #hourHand, body.midnight #minHand{stroke:var(--blood); filter:drop-shadow(0 0 6px var(--blood));}
+
+  /* ------------ CREWMATE TOKENS ------------ */
+  .crew{position:absolute; width:74px; margin-left:-37px; margin-top:-48px; text-align:center;
+    cursor:pointer; user-select:none; z-index:5;
+    transition:left .9s cubic-bezier(.45,.05,.3,1), top .9s cubic-bezier(.45,.05,.3,1), opacity .8s, filter .8s;}
+  .crew .bubble{position:absolute; top:-20px; left:50%; transform:translateX(-50%) scale(0);
+    background:rgba(12,15,28,.92); border:1px solid var(--line); border-radius:12px; padding:1px 7px;
+    font-size:15px; line-height:1.3; transition:transform .25s cubic-bezier(.3,1.6,.5,1); pointer-events:none; white-space:nowrap; z-index:8;}
+  .crew.talking .bubble{transform:translateX(-50%) scale(1);}
+  .crew .av{position:relative; width:46px; height:54px; margin:0 auto;
+    animation:idle 2.6s ease-in-out infinite; transform-origin:50% 100%;}
+  .crew .body{position:absolute; left:7px; top:2px; width:32px; height:40px; background:var(--c,#c51111);
+    border-radius:16px 16px 13px 13px / 21px 21px 13px 13px;
+    border:1.5px solid rgba(0,0,0,.4);
+    box-shadow: inset -7px -3px 0 rgba(0,0,0,.28), inset 5px 3px 0 rgba(255,255,255,.14), 0 5px 9px rgba(0,0,0,.55);}
+  .crew .pack{position:absolute; right:1px; top:15px; width:11px; height:22px; background:var(--c,#c51111);
+    border-radius:5px; filter:brightness(.72); border:1.5px solid rgba(0,0,0,.4); z-index:-1;}
+  .crew .visor{position:absolute; left:13px; top:9px; width:23px; height:14px;
+    background:linear-gradient(#dbeeff,#7fb2e0); border-radius:9px; border:1.5px solid rgba(0,0,0,.35);
+    box-shadow: inset 3px 2px 0 rgba(255,255,255,.75);}
+  .crew .legs{position:absolute; bottom:0; left:9px; width:28px; height:8px; display:flex; justify-content:space-between;}
+  .crew .legs span{width:12px; height:8px; background:var(--c,#c51111); filter:brightness(.85);
+    border:1.5px solid rgba(0,0,0,.35); border-top:none; border-radius:0 0 5px 5px;
+    transition:transform .18s;}
+  .crew .nm{font-size:12px; margin-top:2px; letter-spacing:.4px; text-shadow:0 1px 3px #000;}
+  @keyframes idle{0%,100%{transform:translateY(0) scaleY(1)}50%{transform:translateY(-3px) scaleY(1.03)}}
+  .crew.walking .av{animation:walk .34s ease-in-out infinite;}
+  @keyframes walk{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-3px) rotate(5deg)}}
+  .crew.walking .legs span:first-child{transform:translateY(-3px);}
+  .crew.walking .legs span:last-child{transform:translateY(0);}
+
+  .crew.you .visor{box-shadow: inset 3px 2px 0 rgba(255,255,255,.75), 0 0 0 2px var(--candle), 0 0 10px 2px rgba(242,176,74,.6);}
+  .crew.you .nm{color:var(--candle); font-weight:bold;}
+  .crew.you::after{content:'▾'; position:absolute; top:-30px; left:50%; transform:translateX(-50%);
+    color:var(--candle); font-size:15px; animation:youbob 1.4s ease-in-out infinite;}
+  @keyframes youbob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(4px)}}
+
+  .crew.voting .body{box-shadow: inset -7px -3px 0 rgba(0,0,0,.28), 0 0 18px 6px rgba(242,176,74,.7);}
+  .crew.nomTarget .body{border-color:var(--blood); box-shadow: inset -7px -3px 0 rgba(0,0,0,.28), 0 0 20px 7px rgba(163,32,47,.75);}
+  .crew.nomTarget .av{animation:shake .4s ease-in-out infinite;}
+  @keyframes shake{0%,100%{transform:translateX(0) rotate(0)}25%{transform:translateX(-2px) rotate(-3deg)}75%{transform:translateX(2px) rotate(3deg)}}
+
+  /* ghost / dead crewmate */
+  .crew.ghost{opacity:.62; animation:floaty 3.6s ease-in-out infinite;}
+  .crew.ghost .av{filter:grayscale(.35) brightness(.95); animation:none;}
+  .crew.ghost .legs{opacity:0;}
+  .crew.ghost .body{border-radius:16px 16px 45% 45% / 21px 21px 60% 60%;
+    box-shadow: inset -7px -3px 0 rgba(0,0,0,.2), 0 0 16px 3px rgba(143,216,204,.35);}
+  .crew.ghost .visor{background:linear-gradient(#dff6f0,#8fd8cc);}
+  .crew.ghost .nm{color:var(--ghost);}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+  /* ------------ TOP BANNER ------------ */
+  #banner{position:absolute; top:10px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; width:96%; z-index:6;}
+  #phaseTitle{font-family:var(--disp); font-size:clamp(24px,4.5vw,40px); letter-spacing:2px;
+    color:var(--parchment); text-shadow:0 2px 12px #000, 0 0 24px rgba(242,176,74,.25); margin:0;}
+  body.midnight #phaseTitle{color:#ffb1ba; text-shadow:0 0 18px var(--blood);}
+  #phaseSub{font-size:clamp(12px,2.4vw,16px); font-style:italic; opacity:.85; margin-top:2px; text-shadow:0 1px 4px #000;}
+  #dayBadge{display:inline-block; margin-top:6px; font-family:var(--disp); letter-spacing:1px; font-size:13px;
+    background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:3px 12px; opacity:.9;}
+
+  #hudBtns{position:absolute; top:10px; right:10px; display:flex; gap:8px; z-index:30;}
+  .iconBtn{width:38px; height:38px; border-radius:50%; border:1px solid var(--line); background:var(--panel);
+    color:var(--parchment); font-size:17px; cursor:pointer;}
+  .iconBtn:hover{filter:brightness(1.3);}
+  .iconBtn:focus-visible{outline:2px solid var(--candle);}
+
+  #roleChip{position:absolute; top:10px; left:10px; z-index:30; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:6px 12px; font-size:13px; display:none; cursor:pointer; max-width:46%;}
+  #roleChip b{font-family:var(--disp); letter-spacing:1px; font-weight:400; font-size:16px; color:var(--candle);}
+  #roleChip.evil b{color:#ff8f9b;}
+  #roleChip.ghosted b{color:var(--ghost);}
+  #roleChip small{display:block; opacity:.7; font-size:11px; margin-top:1px;}
+
+  /* ------------ PANEL (chat + actions) ------------ */
+  #panel{background:var(--panel); border-top:1px solid var(--line); display:flex; flex-direction:column;
+    height:33vh; min-height:200px; backdrop-filter:blur(6px);}
+  #tabs{display:flex; gap:4px; padding:6px 8px 0;}
+  .tab{font-family:var(--body); background:none; border:1px solid var(--line); border-bottom:none; color:var(--parchment);
+    opacity:.55; padding:5px 14px; border-radius:8px 8px 0 0; cursor:pointer; font-size:13px;}
+  .tab.active{opacity:1; background:rgba(231,220,192,.07);}
+  .tab.ghostTab{color:var(--ghost);}
+  #log{flex:1; overflow-y:auto; padding:8px 12px; font-size:14px; line-height:1.45;}
+  #log .msg{margin-bottom:5px; animation:msgIn .25s ease;}
+  @keyframes msgIn{from{opacity:0; transform:translateY(4px)}to{opacity:1; transform:none}}
+  #log .who{font-family:var(--disp); letter-spacing:.6px; color:var(--candle); margin-right:6px; font-size:15px;}
+  #log .dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:baseline; border:1px solid rgba(0,0,0,.5);}
+  #log .msg.sys{color:#b9c3dd; font-style:italic;}
+  #log .msg.death{color:#ff9aa5;}
+  #log .msg.ghost{color:var(--ghost);} #log .msg.ghost .who{color:var(--ghost);}
+  #log .msg.whisper{color:#d8b6ff;} #log .msg.whisper .who{color:#d8b6ff;}
+  #inputRow{display:flex; gap:8px; padding:8px 10px; border-top:1px solid var(--line);}
+  #chatIn{flex:1; background:rgba(231,220,192,.06); border:1px solid var(--line); border-radius:8px;
+    color:var(--parchment); font-family:var(--body); font-size:14px; padding:9px 12px;}
+  #chatIn:focus{outline:1px solid var(--candle);}
+  #actionBar{display:flex; gap:8px; padding:0 10px 8px; flex-wrap:wrap;}
+  .btn{font-family:var(--disp); letter-spacing:1px; font-size:16px; padding:9px 16px; border-radius:9px;
+    border:1px solid var(--parchment); background:linear-gradient(#2a3352,#1b2138); color:var(--parchment); cursor:pointer;
+    transition:filter .15s, transform .1s;}
+  .btn:hover{filter:brightness(1.2);} .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:2px solid var(--candle);}
+  .btn.blood{border-color:var(--blood); background:linear-gradient(#7c1624,#490a13); color:#ffdade;}
+  .btn.ghostly{border-color:var(--ghost); color:var(--ghost); background:linear-gradient(#173733,#0d2320);}
+  .btn:disabled{opacity:.4; cursor:default;}
+
+  /* ------------ MODALS ------------ */
+  #modalRoot{position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:50;
+    background:rgba(3,4,10,.78); padding:14px;}
+  #modalRoot.open{display:flex;}
+  .card{background:linear-gradient(#171d33,#0d1122); border:1px solid var(--parchment); border-radius:14px;
+    max-width:560px; width:100%; max-height:88vh; overflow-y:auto; padding:22px 20px; text-align:center;
+    box-shadow:0 0 60px rgba(0,0,0,.9); animation:cardIn .3s cubic-bezier(.2,1.3,.4,1);}
+  @keyframes cardIn{from{opacity:0; transform:translateY(14px) scale(.97)}to{opacity:1; transform:none}}
+  .card h2{font-family:var(--disp); font-weight:400; letter-spacing:2px; font-size:30px; margin:0 0 6px; color:var(--candle);}
+  .card.evil h2{color:#ff8f9b;} .card.ghostcard h2{color:var(--ghost);}
+  .card p{font-size:15px; line-height:1.5; margin:.5em 0;}
+  .card .em{font-style:italic; opacity:.8;}
+  .pickGrid{display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin:14px 0;}
+  .pick{border:1px solid var(--line); border-radius:10px; background:rgba(231,220,192,.05); color:var(--parchment);
+    padding:10px 12px; cursor:pointer; font-family:var(--body); font-size:14px; min-width:86px; transition:transform .12s, border-color .2s, box-shadow .2s;}
+  .pick:hover{transform:translateY(-2px); border-color:var(--parchment);}
+  .pick .pf{font-size:22px;}
+  .pick .pd{font-size:11px; opacity:.7; margin-top:3px; line-height:1.25;}
+  .pick.sel{border-color:var(--candle); box-shadow:0 0 12px rgba(242,176,74,.5);}
+  .pick.evilRole{border-color:rgba(255,143,155,.4);}
+  .pick.evilRole:hover{border-color:#ff8f9b;}
+  .pick:disabled{opacity:.35; cursor:default; transform:none;}
+  .roleGrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:9px; margin:14px 0;}
+  .roleGrid .pick{min-width:0;}
+  .teamLbl{font-family:var(--disp); letter-spacing:1px; font-size:13px; opacity:.7; text-align:left; margin:10px 2px 2px;}
+  .teamLbl.evil{color:#ff8f9b;}
+
+  /* fiend kill screen: candles */
+  .killGrid{display:flex; flex-wrap:wrap; gap:16px; justify-content:center; margin:16px 0;}
+  .candle{background:none; border:none; cursor:pointer; color:var(--parchment); font-family:var(--body); font-size:13px;}
+  .candle .stick{width:16px; height:44px; background:linear-gradient(#efe6cd,#c9bd9c); margin:4px auto 6px; border-radius:3px;}
+  .candle .fl{width:12px; height:18px; margin:0 auto; border-radius:50% 50% 50% 50%/62% 62% 38% 38%;
+    background:radial-gradient(circle at 50% 85%, #fff2c8, var(--candle) 55%, transparent 78%);
+    box-shadow:0 0 14px 5px rgba(242,176,74,.55); animation:flick .8s infinite alternate;}
+  @keyframes flick{from{transform:scaleY(1) translateY(0)} to{transform:scaleY(1.22) translateY(-1px)}}
+  .candle:hover .fl{box-shadow:0 0 20px 8px rgba(163,32,47,.8); background:radial-gradient(circle at 50% 85%, #ffd7d7, var(--blood) 60%, transparent 80%);}
+  .candle.snuffed .fl{opacity:0; animation:none;}
+  .candle.snuffed::after{content:'🕯️💨'; display:block;}
+
+  #vign{position:fixed; inset:0; pointer-events:none; z-index:40; opacity:0; transition:opacity 1s;
+    background:radial-gradient(circle at 50% 45%, transparent 40%, rgba(60,3,10,.55) 100%);}
+  body.midnight #vign{opacity:1;}
+
+  @media (min-width:900px){
+    body{flex-direction:row;}
+    #scene{flex:1;}
+    #panel{width:380px; height:auto; border-top:none; border-left:1px solid var(--line);}
+    #clockWrap{width:min(58vw,80vh);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div id="scene">
+  <div id="stars"></div>
+  <div id="moon"></div>
+  <div id="motes"></div>
+  <svg id="roofs" viewBox="0 0 1000 100" preserveAspectRatio="none">
+    <path d="M0,100 L0,60 60,60 80,30 100,60 180,60 180,40 200,20 220,40 220,60 320,60 350,10 380,60 470,60 470,35 500,15 530,35 530,60 640,60 660,45 680,60 760,60 790,25 820,60 920,60 940,40 960,60 1000,60 1000,100 Z" fill="#05060d"/>
+  </svg>
+  <div id="fog"></div>
+  <div id="clockWrap">
+    <svg id="clockSvg" viewBox="0 0 200 200">
+      <circle class="face" cx="100" cy="100" r="92"/>
+      <g id="ticks"></g><g id="nums"></g>
+      <line id="hourHand" x1="100" y1="100" x2="100" y2="58"/>
+      <line id="minHand"  x1="100" y1="100" x2="100" y2="40"/>
+      <circle id="clockPin" cx="100" cy="100" r="4"/>
+    </svg>
+  </div>
+  <div id="townshade"></div>
+  <div id="banner"><h1 id="phaseTitle">Grim on the Bell Tower</h1><div id="phaseSub"></div><div id="dayBadge" style="display:none"></div></div>
+  <div id="roleChip" title="Tap to see your power"></div>
+  <div id="hudBtns">
+    <button class="iconBtn" id="helpBtn" title="How to play" aria-label="How to play">?</button>
+    <button class="iconBtn" id="muteBtn" title="Sound on/off" aria-label="Toggle sound">🔔</button>
+    <button class="iconBtn" id="restartBtn" title="Restart" aria-label="Restart game">↺</button>
+  </div>
+</div>
+
+<div id="panel">
+  <div id="tabs">
+    <button class="tab active" data-tab="town">Town Square</button>
+    <button class="tab ghostTab" data-tab="ghost" style="display:none">Ghost Chat</button>
+  </div>
+  <div id="log" aria-live="polite"></div>
+  <div id="actionBar"></div>
+  <div id="inputRow">
+    <input id="chatIn" placeholder="Speak to the town… (mention a name to accuse)" autocomplete="off" maxlength="140">
+    <button class="btn" id="sendBtn">Speak</button>
+  </div>
+</div>
+
+<div id="vign"></div>
+<div id="modalRoot"><div class="card" id="modalCard"></div></div>
+
+<script>
+'use strict';
+/* =========================================================================
+   GRIM ON THE BELL TOWER — playable single-file prototype
+   Single player vs AI. Blood-on-the-Clocktower gameplay, Among Us-style crew.
+   All audio is synthesized (Web Audio API). All art is original CSS/SVG.
+   ========================================================================= */
+
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const rand = a => a[Math.floor(Math.random()*a.length)];
+const rint = (a,b)=> a+Math.floor(Math.random()*(b-a+1));
+
+/* ----------------------- AUDIO (fully procedural) ----------------------- */
+const AUDIO = {
+  ctx:null, muted:false, ambient:[], owlTimer:null,
+  ensure(){ if(!this.ctx){ this.ctx = new (window.AudioContext||window.webkitAudioContext)(); } if(this.ctx.state==='suspended') this.ctx.resume(); },
+  g(v){ const g=this.ctx.createGain(); g.gain.value=v; g.connect(this.ctx.destination); return g; },
+  stopAmbient(){ this.ambient.forEach(n=>{try{n.stop?n.stop():n.disconnect();}catch(e){}}); this.ambient=[]; clearInterval(this.owlTimer); },
+  startAmbient(night){
+    if(this.muted||!this.ctx) return; this.stopAmbient();
+    const c=this.ctx;
+    const freqs = night? [55,55.7,110] : [110,138.6,164.8];
+    const master=this.g(night? .045 : .03); this.ambient.push(master);
+    const lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value= night? 240: 700; lp.connect(master);
+    freqs.forEach(f=>{ const o=c.createOscillator(); o.type= night?'sine':'triangle'; o.frequency.value=f;
+      o.connect(lp); o.start(); this.ambient.push(o); });
+    const buf=c.createBuffer(1, c.sampleRate*2, c.sampleRate); const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const src=c.createBufferSource(); src.buffer=buf; src.loop=true;
+    const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value= night? 400: 1400; bp.Q.value=.6;
+    const wg=this.g(night? .012 : .008); src.connect(bp); bp.connect(wg); src.start();
+    this.ambient.push(src,wg);
+    const lfo=c.createOscillator(); lfo.frequency.value=.08; const lg=c.createGain(); lg.gain.value= night? .008: .004;
+    lfo.connect(lg); lg.connect(wg.gain); lfo.start(); this.ambient.push(lfo,lg);
+    this.owlTimer=setInterval(()=>{ if(this.muted) return; night? this.owl() : this.bird(); }, rint(6000,12000));
+  },
+  tone(freq,dur,type='sine',vol=.08,when=0){
+    if(this.muted||!this.ctx) return; const c=this.ctx, t=c.currentTime+when;
+    const o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+dur+.05);
+  },
+  owl(){ this.tone(540,.28,'sine',.05); this.tone(430,.5,'sine',.05,.32); },
+  bird(){ const b=rint(1400,2200); this.tone(b,.09,'sine',.035); this.tone(b*1.2,.09,'sine',.035,.11); this.tone(b*.95,.12,'sine',.03,.24); },
+  tick(){ this.tone(1900,.03,'square',.05); this.tone(120,.05,'sine',.06); },
+  step(){ this.tone(90,.05,'sine',.05); },
+  bell(n=1){ if(this.muted||!this.ctx) return;
+    for(let i=0;i<n;i++){ const w=i*1.6, f=131;
+      [[1,.14],[2.74,.06],[5.4,.03],[8.1,.015]].forEach(([m,v])=>this.tone(f*m,3.2,'sine',v,w));
+      this.tone(2600,.02,'square',.05,w); }
+  },
+  heartbeat(times=4){ if(this.muted||!this.ctx) return;
+    for(let i=0;i<times;i++){ const w=i*1.05;
+      this.tone(52,.16,'sine',.22,w); this.tone(48,.2,'sine',.18,w+.28); }
+  },
+  sting(){ this.tone(196,.7,'sawtooth',.05); this.tone(185,.9,'sawtooth',.05,.05); },
+  chime(){ this.tone(880,.12,'sine',.05); this.tone(1320,.16,'sine',.04,.08); },
+  snuff(){ if(this.muted||!this.ctx) return; const c=this.ctx;
+    const buf=c.createBuffer(1,c.sampleRate*.35,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+    const s=c.createBufferSource(); s.buffer=buf; const f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=900;
+    const g=this.g(.12); s.connect(f); f.connect(g); s.start();
+  },
+  drum(){ this.tone(70,.4,'sine',.2); this.tone(70,.4,'sine',.2,.5); this.tone(55,.9,'sine',.25,1.0); }
+};
+$('#muteBtn').onclick=()=>{ AUDIO.muted=!AUDIO.muted; $('#muteBtn').textContent=AUDIO.muted?'🔕':'🔔';
+  if(AUDIO.muted) AUDIO.stopAmbient(); else AUDIO.startAmbient(!document.body.classList.contains('day')); };
+$('#restartBtn').onclick=()=>location.reload();
+
+/* ----------------------------- ROLES ------------------------------------ */
+const ROLES = {
+  nightmaw:  {n:'Nightmaw',    icon:'🌑', team:'evil', d:'You are the Fiend. Each midnight, choose a soul to devour. Survive, and Hollowmere falls.'},
+  venomist:  {n:'Venomist',    icon:'🧪', team:'evil', d:'Each night you taint one villager — their power fails or lies to them. You know the Fiend.'},
+  seer:      {n:'Seer',        icon:'🔮', team:'good', d:'Each night, gaze upon two villagers and learn whether the Fiend is among them.'},
+  friar:     {n:'Friar',       icon:'🕯️', team:'good', d:'Each night, shield one other villager from the Fiend.'},
+  sensitive: {n:'Sensitive',   icon:'👁️', team:'good', d:'Each night, sense how many of your two living neighbours are evil.'},
+  watchman:  {n:'Watchman',    icon:'🛡️', team:'good', d:'The Fiend cannot kill you. Stand firm.'},
+  hunter:    {n:'Hunter',      icon:'🏹', team:'good', d:'Once per game, by day, fire at a villager. If they are the Fiend, they die.'},
+  gravedigger:{n:'Gravedigger',icon:'⚰️', team:'good', d:'Each dawn, you learn the true role of whoever was executed the day before.'},
+};
+const BOT_NAMES = ['Marlowe','Petra','Ozric','Wren','Barnaby','Sable','Ines','Cato','Mirabel'];
+/* Among Us-style crew colours */
+const COLORS = ['#c51111','#132ed1','#117f2d','#ed54ba','#ef7d0d','#f5f557','#6b2fbb','#38fedc','#50ef39','#71491e','#d6e0f0','#5b5f63'];
+
+/* ----------------------------- STATE ------------------------------------ */
+const G = {
+  players:[], you:null, day:0, phase:'title',
+  poisoned:null, protectedP:null, executedYesterday:null,
+  ghostTab:false, whisperTarget:null, over:false,
+  chatLocked:true, nominationOpen:false, hunterShotAvailable:true, lastAccused:null,
+};
+
+function alivePlayers(){ return G.players.filter(p=>p.alive); }
+function fiend(){ return G.players.find(p=>p.role==='nightmaw'); }
+function byName(n){ return G.players.find(p=>p.name===n); }
+
+/* ----------------------------- LOG/CHAT --------------------------------- */
+const townLog=[], ghostLog=[];
+function pushMsg(list, m){ list.push(m); renderLog(); }
+function say(who, text, cls=''){ pushMsg(townLog,{who,text,cls}); if(who) flashTalk(who, cls); }
+function sys(text){ pushMsg(townLog,{who:null,text,cls:'sys'}); }
+function ghostSay(who,text){ pushMsg(ghostLog,{who,text,cls:'ghost'}); }
+function dotFor(who){ const p=who&&byName(who); return p? `<span class="dot" style="background:${p.color}"></span>`:''; }
+function renderLog(){
+  const list = G.ghostTab? ghostLog : townLog;
+  const el=$('#log');
+  el.innerHTML = list.map(m=>`<div class="msg ${m.cls}">${m.who?`${dotFor(m.who)}<span class="who">${m.who}:</span>`:''}${m.text}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
+  G.ghostTab = t.dataset.tab==='ghost'; renderLog();
+});
+
+/* speech bubble over a crewmate */
+function flashTalk(name, cls=''){
+  const p=byName(name); if(!p||!p.el) return;
+  const b=p.el.querySelector('.bubble');
+  b.textContent = cls==='whisper' ? '🤫' : '💬';
+  p.el.classList.add('talking');
+  clearTimeout(p._tt); p._tt=setTimeout(()=>p.el.classList.remove('talking'), 1900);
+}
+function emote(name, glyph){ const p=byName(name); if(!p||!p.el) return;
+  const b=p.el.querySelector('.bubble'); b.textContent=glyph; p.el.classList.add('talking');
+  clearTimeout(p._tt); p._tt=setTimeout(()=>p.el.classList.remove('talking'), 1500); }
+
+/* ----------------------------- CLOCK & SEATS ----------------------------- */
+function buildClock(){
+  const ticks=$('#ticks'), nums=$('#nums'); const RN=['XII','I','II','III','IV','V','VI','VII','VIII','IX','X','XI'];
+  for(let i=0;i<60;i++){ const a=i*6*Math.PI/180, r1= i%5? 86:82, r2=90;
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',100+r1*Math.sin(a)); l.setAttribute('y1',100-r1*Math.cos(a));
+    l.setAttribute('x2',100+r2*Math.sin(a)); l.setAttribute('y2',100-r2*Math.cos(a));
+    l.setAttribute('class','tickmark'); ticks.appendChild(l); }
+  RN.forEach((t,i)=>{ const a=i*30*Math.PI/180, r=70;
+    const tx=document.createElementNS('http://www.w3.org/2000/svg','text');
+    tx.setAttribute('x',100+r*Math.sin(a)); tx.setAttribute('y',100-r*Math.cos(a));
+    tx.setAttribute('class','numeral'); tx.textContent=t; nums.appendChild(tx); });
+  const st=$('#stars'); for(let i=0;i<70;i++){ const d=document.createElement('div'); d.className='star';
+    d.style.left=Math.random()*100+'%'; d.style.top=Math.random()*60+'%'; d.style.animationDelay=(Math.random()*3)+'s'; st.appendChild(d); }
+  const mo=$('#motes'); for(let i=0;i<16;i++){ const m=document.createElement('div'); m.className='mote';
+    m.style.left=Math.random()*100+'%'; m.style.animationDuration=(rint(9,18))+'s';
+    m.style.animationDelay=(-Math.random()*18)+'s'; m.style.transform='scale('+(0.6+Math.random()*1.4)+')'; mo.appendChild(m); }
+}
+function setHands(h,m){ $('#hourHand').style.transform=`rotate(${(h%12)*30+m*.5}deg)`;
+  $('#minHand').style.transform=`rotate(${m*6}deg)`; }
+
+function layoutSeats(){
+  const wrap=$('#clockWrap');
+  G.players.forEach((p,i)=>{
+    if(!p.el){ p.el=document.createElement('div'); p.el.className='crew'; p.el.style.setProperty('--c',p.color);
+      p.el.innerHTML=
+      `<div class="bubble"></div>
+       <div class="av"><div class="pack"></div><div class="body"></div><div class="visor"></div><div class="legs"><span></span><span></span></div></div>
+       <div class="nm">${p.name}</div>`;
+      wrap.appendChild(p.el); p.el.onclick=()=>onSeatTap(p);
+      // little walk animation whenever it repositions
+      p.el.addEventListener('transitionstart',e=>{ if(e.propertyName==='left'||e.propertyName==='top'){
+        p.el.classList.add('walking'); clearTimeout(p._wt); p._wt=setTimeout(()=>p.el.classList.remove('walking'),950); }});
+    }
+    const a=(i/G.players.length)*2*Math.PI + Math.PI/2; // you (i=0) at bottom
+    p.el.style.left=(50+46*Math.cos(a))+'%'; p.el.style.top=(50+46*Math.sin(a))+'%';
+    p.el.classList.toggle('you', p.isYou);
+    p.el.classList.toggle('ghost', !p.alive);
+    p.el.querySelector('.av').style.animationDelay = (i*0.2)+'s';
+  });
+}
+function refreshSeats(){ G.players.forEach(p=>{ p.el.classList.toggle('ghost',!p.alive); }); }
+
+/* ----------------------------- UI helpers ------------------------------- */
+function setPhase(title, sub=''){ $('#phaseTitle').textContent=title; $('#phaseSub').textContent=sub; }
+function modal(html, opts={}){ return new Promise(res=>{
+  const root=$('#modalRoot'), card=$('#modalCard');
+  card.className='card '+(opts.cls||''); card.innerHTML=html; root.classList.add('open');
+  card.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>{ root.classList.remove('open'); res(b.dataset.close); });
+  if(opts.wire) opts.wire(card, v=>{ root.classList.remove('open'); res(v); });
+});}
+function actions(btns){ const bar=$('#actionBar'); bar.innerHTML='';
+  btns.forEach(b=>{ const el=document.createElement('button'); el.className='btn '+(b.cls||'');
+    el.textContent=b.t; el.disabled=!!b.dis; el.onclick=b.fn; bar.appendChild(el); }); }
+function roleChip(){
+  const chip=$('#roleChip'); const r=ROLES[G.you.role];
+  chip.style.display='block';
+  chip.className = (r.team==='evil'?'evil':'') + (!G.you.alive?' ghosted':'');
+  chip.innerHTML = `You are <b>${r.icon} ${G.you.alive? r.n : r.n+' (ghost)'}</b><small>${r.d}</small>`;
+}
+$('#roleChip').onclick=()=>{ if(!G.you) return; const r=ROLES[G.you.role];
+  modal(`<h2>${r.icon} ${r.n}</h2><p>${r.d}</p><button class="btn ${r.team==='evil'?'blood':''}" data-close="ok">Close</button>`,{cls:r.team==='evil'?'evil':''}); };
+$('#helpBtn').onclick=()=>howToPlay();
+function howToPlay(){
+  modal(`<h2>🕰️ How to Play</h2>
+    <p class="em">Hollowmere hides one Fiend (the Nightmaw) and a secret servant. Good must find and execute the Fiend; evil must outlast the town.</p>
+    <p><b>🌙 Night</b> — roles wake in secret. If you have a power, you'll be asked to use it.</p>
+    <p><b>🔔 Dawn</b> — the bell tolls for whoever the Fiend devoured.</p>
+    <p><b>☀️ Day</b> — talk and accuse in the chat below. <b>Tap a crewmate</b> to whisper. Then <b>Call the Vote</b>, nominate someone, and raise your hand as the clock sweeps.</p>
+    <p><b>👻 Death isn't the end</b> — the dead speak in Ghost Chat, cast one final ghost vote, and can Haunt the living.</p>
+    <p class="em">Win by wits. Sound on for the full effect 🔔</p>
+    <button class="btn" data-close="ok">Got it</button>`);
+}
+
+/* ----------------------------- BOT BRAINS ------------------------------- */
+function bumpSus(bot, target, amt){ if(!bot.sus) bot.sus={}; bot.sus[target.id]=(bot.sus[target.id]||0)+amt; }
+function topSuspect(bot){
+  const cands=alivePlayers().filter(p=>p!==bot);
+  let best=null,bs=-1e9; cands.forEach(p=>{ let s=(bot.sus&&bot.sus[p.id])||0;
+    if(ROLES[bot.role].team==='evil' && ROLES[p.role].team==='evil') s-=100; // evil covers evil
+    s+=Math.random()*1.2; if(s>bs){bs=s;best=p;} });
+  return best;
+}
+const CHATTER = {
+  morning:["A grim dawn. Someone here wears a false face.","I barely slept. That bell haunts my dreams.",
+    "We must talk, and quickly — midnight always comes.","Trust no one who talks too smoothly.",
+    "Who was where when the bell tolled? Speak up.","Another night survived. Not all of us can say that.",
+    "The Fiend sits at this very table. I feel it in my teeth.","Keep your wits. Panic is the Fiend's dearest friend."],
+  accuse:["{T} was awfully quiet yesterday…","I don't like how {T} watches the rest of us.",
+    "{T}, where were you when the bell tolled?","My gut says {T}. Gut's been wrong before, but still.",
+    "{T} keeps changing the story. Did no one else catch that?","Why so eager to point elsewhere, {T}?",
+    "{T} hasn't given us one straight answer.","I'll say it plain: I think {T} is the Fiend."],
+  agree:["Aye, {T} has been slippery.","Now that you say it… {T} does add up.",
+    "I had the very same thought about {T}.","You're not alone — {T} worries me too.",
+    "Two of us now. {T}, explain yourself."],
+  defend:["It isn't me, I swear it on the bell tower.","You waste the day pointing at me while the Fiend laughs.",
+    "I am but a humble villager!","Accuse me again and you'll regret it at the vote.",
+    "Where's your proof? Or do we hang the innocent now?","Turn that eye on someone else, {A}, not me.",
+    "I've done nothing but try to save this town."],
+  ghost:["Being dead is dull. Vote better than I did.","I can see so much from up here…",
+    "Told you it wasn't me.","Use your ghost vote wisely, friend.",
+    "The living never listen until it's too late.","Watch the quiet ones. I learned that the hard way."],
+  nom:["I nominate {T}. Let the clock decide.","{T} must answer to the town. I nominate them.",
+    "Enough talk. To the trapdoor, {T} — I nominate them.","The hand is sweeping. I put {T} to the vote."],
+  worry:["We're running out of nights, friends.","One wrong vote and Hollowmere is lost.",
+    "Whoever the Fiend is — they're winning."],
+};
+function botLine(pool, T, A){ return rand(CHATTER[pool]).replace('{T}', T? T.name:'them').replace('{A}', A? A.name:'you'); }
+
+/* ----------------------------- GAME SETUP -------------------------------- */
+function newGame(choice){
+  const roleKeys=Object.keys(ROLES);
+  let yours = (choice==='random' || !ROLES[choice]) ? rand(roleKeys) : choice;
+  const rest = roleKeys.filter(r=>r!==yours).sort(()=>Math.random()-.5);
+  const names=[...BOT_NAMES].sort(()=>Math.random()-.5);
+  const cols=[...COLORS].sort(()=>Math.random()-.5);
+  G.players=[{id:0,name:'Ash',isYou:true,role:yours,alive:true,ghostVote:true}];
+  rest.forEach((r,i)=>G.players.push({id:i+1,name:names[i],isYou:false,role:r,alive:true,ghostVote:true,sus:{}}));
+  // seat order shuffle (keep you at index0/bottom)
+  const bots=G.players.slice(1).sort(()=>Math.random()-.5);
+  G.players=[G.players[0],...bots];
+  G.players.forEach((p,i)=>p.color=cols[i%cols.length]);
+  G.you=G.players[0];
+  layoutSeats(); roleChip();
+  revealRole();
+}
+
+async function revealRole(){
+  const r=ROLES[G.you.role]; const evil=r.team==='evil';
+  let extra='';
+  if(G.you.role==='nightmaw'){ const v=G.players.find(p=>p.role==='venomist');
+    extra=`<p>Your servant, the <b>Venomist</b>, is <b>${v.name}</b>.</p>`; }
+  if(G.you.role==='venomist'){ extra=`<p>Your master, the <b>Nightmaw</b>, is <b>${fiend().name}</b>.</p>`; }
+  await modal(`<h2>${r.icon} ${r.n}</h2><p class="em">${evil?'Evil walks in your shoes.':'You are good. Hollowmere depends on you.'}</p>
+    <p>${r.d}</p>${extra}<button class="btn ${evil?'blood':''}" data-close="ok">I understand</button>`,{cls:evil?'evil':''});
+  startLifeLoop();
+  nightPhase();
+}
+
+/* ----------------------------- NIGHT ------------------------------------- */
+async function nightPhase(){
+  if(G.over) return;
+  G.phase='night'; G.chatLocked=true; actions([]);
+  document.body.classList.remove('day');
+  AUDIO.startAmbient(true);
+  setPhase('Night falls on Hollowmere','The town sleeps… mostly.');
+  sys('🌙 Night falls. All eyes close.');
+  setHands(11,0);
+  G.poisoned=null; G.protectedP=null;
+  await sleep(1800);
+
+  /* — Venomist — */
+  if(G.you.role==='venomist' && G.you.alive){
+    setPhase('You wake…','Choose whose gift shall rot tonight.');
+    const t=await pickPlayers('🧪 Venomist','Taint one villager. Their power will fail or lie.',1,p=>p.alive&&p!==G.you);
+    G.poisoned=t[0]; sys('You slip poison into a cup. No one stirs.');
+  } else {
+    const v=G.players.find(p=>p.role==='venomist');
+    if(v && v.alive){ G.poisoned=rand(alivePlayers().filter(p=>ROLES[p.role].team==='good')); }
+    await fakeWake();
+  }
+
+  /* — Friar — */
+  if(G.you.role==='friar' && G.you.alive){
+    setPhase('You wake…','Whose door will you ward tonight?');
+    const t=await pickPlayers('🕯️ Friar','Shield one villager from the Fiend.',1,p=>p.alive&&p!==G.you);
+    G.protectedP = (G.poisoned===G.you)? null : t[0];
+    sys('You trace a ward of candle-smoke and slip away.');
+  } else {
+    const f=G.players.find(p=>p.role==='friar');
+    if(f&&f.alive){ const t=rand(alivePlayers().filter(p=>p!==f)); G.protectedP=(G.poisoned===f)?null:t; }
+    await fakeWake();
+  }
+
+  /* — Seer — */
+  if(G.you.role==='seer' && G.you.alive){
+    setPhase('You wake…','The orb swirls. Choose two souls.');
+    const t=await pickPlayers('🔮 Seer','Gaze upon two villagers.',2,p=>p.alive&&p!==G.you);
+    let evil = t.includes(fiend());
+    if(G.poisoned===G.you) evil = Math.random()<.5;
+    await modal(`<h2>🔮 The orb speaks</h2><p class="em">${evil?'The waters boil <b>red</b>. The Fiend is among them.':'The waters lie calm. No Fiend there.'}</p>
+      <button class="btn" data-close="ok">Close the orb</button>`);
+  } else {
+    const s=G.players.find(p=>p.role==='seer');
+    if(s&&s.alive&&s!==G.you){ const pool=alivePlayers().filter(p=>p!==s); const t=[rand(pool)]; let t2=rand(pool.filter(p=>p!==t[0])); t.push(t2);
+      let evil=t.includes(fiend()); if(G.poisoned===s) evil=Math.random()<.5;
+      if(evil) t.forEach(x=>bumpSus(s,x,2.2)); else t.forEach(x=>bumpSus(s,x,-1.5)); }
+    await fakeWake();
+  }
+
+  /* — Sensitive — */
+  if(G.you.role==='sensitive' && G.you.alive){
+    const n=neighbours(G.you); let cnt=n.filter(p=>ROLES[p.role].team==='evil').length;
+    if(G.poisoned===G.you) cnt=rint(0,2);
+    await modal(`<h2>👁️ A shiver</h2><p class="em">You sense <b>${cnt}</b> of your two living neighbours ${cnt===1?'is':'are'} evil.</p>
+      <button class="btn" data-close="ok">Lie still</button>`);
+  } else {
+    const s=G.players.find(p=>p.role==='sensitive');
+    if(s&&s.alive){ const n=neighbours(s); let cnt=n.filter(p=>ROLES[p.role].team==='evil').length;
+      if(G.poisoned===s) cnt=rint(0,2);
+      if(cnt>0) n.forEach(x=>bumpSus(s,x,1.6)); else n.forEach(x=>bumpSus(s,x,-1.2)); }
+    await fakeWake();
+  }
+
+  await midnight();
+}
+function neighbours(p){
+  const alive=G.players.filter(x=>x.alive||x===p); const i=alive.indexOf(p);
+  return [alive[(i-1+alive.length)%alive.length], alive[(i+1)%alive.length]].filter(x=>x!==p);
+}
+async function fakeWake(){ setPhase('The night is long…', rand(['An owl calls across the square.','Wind rattles the shutters.','The clock tower groans.','Somewhere, a floorboard creaks.'])); await sleep(rint(1700,3200)); }
+
+/* ------------------------------ MIDNIGHT --------------------------------- */
+async function midnight(){
+  document.body.classList.add('midnight');
+  setPhase('The hands crawl toward XII','');
+  for(let m=5;m<=60;m+=5){ setHands(11,m); AUDIO.tick(); await sleep(420); }
+  setPhase('MIDNIGHT','The Fiend hunts.');
+  AUDIO.heartbeat(4); await sleep(1200);
+
+  let victim=null;
+  const f=fiend();
+  if(f.alive){
+    if(G.you.role==='nightmaw' && G.you.alive){
+      victim = await fiendKillScreen();
+    } else {
+      const prey=alivePlayers().filter(p=>p!==f && p.role!=='venomist');
+      const order=['seer','sensitive','friar','hunter','gravedigger','watchman'];
+      prey.sort((a,b)=> order.indexOf(a.role)-order.indexOf(b.role) + (Math.random()-.5));
+      victim=prey[0];
+      await sleep(2200);
+    }
+    if(victim===G.protectedP){ sys('Claws rake against candle-smoke… and find nothing.'); victim=null; }
+    else if(victim && victim.role==='watchman'){ if(G.you.role==='nightmaw') sys('Your claws shatter on unseen armour.'); victim=null; }
+  }
+  document.body.classList.remove('midnight');
+  await dawn(victim);
+}
+function fiendKillScreen(){
+  return new Promise(res=>{
+    const prey=alivePlayers().filter(p=>p!==G.you);
+    modal(`<h2>🌑 The town is yours</h2><p class="em">Each candle is a life. Snuff one.</p>
+      <div class="killGrid">${prey.map(p=>`<button class="candle" data-id="${p.id}"><div class="fl"></div><div class="stick"></div>${p.name}</button>`).join('')}</div>`,
+      {cls:'evil', wire:(card,done)=>{
+        card.querySelectorAll('.candle').forEach(c=>c.onclick=async ()=>{
+          c.classList.add('snuffed'); AUDIO.snuff(); AUDIO.sting();
+          await sleep(900); done(); res(G.players.find(p=>p.id==c.dataset.id));
+        });
+      }});
+  });
+}
+
+/* -------------------------------- DAWN ----------------------------------- */
+async function dawn(victim){
+  G.day++;
+  document.body.classList.add('day');
+  AUDIO.startAmbient(false);
+  setHands(G.day%12, 0);
+  setPhase(`Dawn — Day ${G.day}`, 'The bell counts the dead.');
+  const badge=$('#dayBadge'); badge.style.display='inline-block';
+  badge.textContent=`Day ${G.day} · ${alivePlayers().length} alive`;
+
+  if(victim){
+    victim.alive=false; refreshSeats(); AUDIO.bell(1);
+    sys(`🔔 The bell tolls once. <b>${victim.name}</b> was found cold at first light.`);
+    if(victim.isYou){ await becomeGhost('The Fiend came for you in the dark.'); }
+    else ghostSay(victim.name, botLine('ghost'));
+  } else {
+    AUDIO.bell(0); sys('🔔 The bell is silent. By some miracle, no one died.');
+  }
+
+  // Gravedigger learns yesterday's executed role
+  if(G.executedYesterday && G.you.role==='gravedigger' && G.you.alive){
+    const r=ROLES[G.executedYesterday.role];
+    await modal(`<h2>⚰️ Fresh earth</h2><p class="em">You buried <b>${G.executedYesterday.name}</b>. They were the <b>${r.icon} ${r.n}</b>.</p>
+      <button class="btn" data-close="ok">Keep digging</button>`);
+  }
+  G.executedYesterday=null;
+
+  if(checkWin()) return;
+  dayPhase();
+}
+
+/* -------------------------------- DAY ------------------------------------ */
+function dayPhase(){
+  G.phase='day'; G.chatLocked=false;
+  setPhase(`Day ${G.day}`, 'Talk. Accuse. Whisper. Then let the clock judge.');
+  $('#dayBadge').textContent=`Day ${G.day} · ${alivePlayers().length} alive`;
+  sys('☀️ The town gathers in the square. Tap a crewmate to whisper. Speak below to accuse.');
+  botChatter();
+  const btns=[{t:'Call the Vote', cls:'blood', fn:startNomination}];
+  if(G.you.role==='hunter' && G.you.alive && G.hunterShotAvailable)
+    btns.unshift({t:'🏹 Fire the Shot', fn:hunterShoot});
+  if(!G.you.alive) addGhostActions(btns);
+  actions(btns);
+}
+let chatterTimer=null;
+function botChatter(){
+  clearInterval(chatterTimer); let n=0;
+  chatterTimer=setInterval(()=>{
+    if(G.phase==='vote'||G.phase==='nominate'||G.over||n>6){ clearInterval(chatterTimer); return; }
+    const speakers=alivePlayers().filter(p=>!p.isYou);
+    if(!speakers.length) return;
+    const b=rand(speakers); n++;
+    const t=topSuspect(b);
+    const strong = b.sus && t && (b.sus[t.id]||0)>1.5;
+    const pool = strong ? 'accuse' : (Math.random()<.3?'accuse':(Math.random()<.25?'worry':'morning'));
+    say(b.name, botLine(pool,t));
+    if(pool==='accuse' && t){
+      G.lastAccused=t;
+      alivePlayers().filter(x=>!x.isYou&&x!==b&&x!==t).forEach(x=>bumpSus(x,t,0.5));
+      // a second bot may pile on, or the accused defends
+      const others=alivePlayers().filter(p=>!p.isYou&&p!==b&&p!==t);
+      if(others.length && Math.random()<.4) setTimeout(()=>say(rand(others).name, botLine('agree',t)),1400);
+      else if(t.alive && !t.isYou && Math.random()<.6) setTimeout(()=>say(t.name, botLine('defend',null,b)),1500);
+    }
+  }, rint(2600,4200));
+}
+
+/* whispers */
+function onSeatTap(p){
+  if(G.nominationOpen){ doNominate(p); return; }
+  if(p.isYou){ emote('Ash', rand(['👋','😳','🙂','🤨'])); return; }
+  if(G.phase==='title'||G.chatLocked||!p.alive||!G.you.alive) return;
+  G.whisperTarget=p;
+  emote(p.name,'🤫'); emote('Ash','💬');
+  sys(`👀 The town notices: <b>Ash</b> leans in to whisper with <b>${p.name}</b>…`);
+  const reply = rand(["Keep your voice down. Who do you suspect?","I trust you… for now.","Watch "+(topSuspect(p)?.name||'the quiet ones')+". Something's off.","If I die tonight, remember this talk.","Say the word and we vote together."]);
+  pushMsg(townLog,{who:`${p.name} (whisper)`,text:reply,cls:'whisper'});
+  setTimeout(()=>{ G.whisperTarget=null; },1200);
+}
+
+/* player chat */
+function handleChat(){
+  const inp=$('#chatIn'); const txt=inp.value.trim(); if(!txt) return; inp.value='';
+  if(!G.you.alive){ ghostSay('Ash (ghost)', txt); const gb=G.players.filter(p=>!p.alive&&!p.isYou);
+    if(gb.length&&Math.random()<.7) setTimeout(()=>ghostSay(rand(gb).name, botLine('ghost')),1500);
+    return; }
+  if(G.chatLocked){ sys('🌙 The town sleeps. Your words are lost to the wind.'); return; }
+  say('Ash', txt);
+  // accusation parsing: mentioning a bot's name raises table suspicion of them
+  G.players.forEach(p=>{ if(!p.isYou && txt.toLowerCase().includes(p.name.toLowerCase())){
+    alivePlayers().filter(b=>!b.isYou).forEach(b=>bumpSus(b,p,1.1));
+    G.lastAccused=p;
+    if(p.alive && Math.random()<.8) setTimeout(()=>say(p.name, botLine('defend',null,G.you)), 1300);
+  }});
+}
+$('#sendBtn').onclick=handleChat;
+$('#chatIn').addEventListener('keydown',e=>{ if(e.key==='Enter') handleChat(); });
+
+/* hunter */
+async function hunterShoot(){
+  const t=await pickPlayers('🏹 Hunter','Fire at one villager. If they are the Fiend, they die. One arrow only.',1,p=>p.alive&&p!==G.you);
+  G.hunterShotAvailable=false;
+  sys(`🏹 <b>Ash</b> raises the bow before the whole town and fires at <b>${t[0].name}</b>!`);
+  AUDIO.sting();
+  await sleep(1200);
+  if(t[0].role==='nightmaw'){ t[0].alive=false; refreshSeats(); AUDIO.bell(1);
+    sys(`💥 The arrow strikes true! <b>${t[0].name}</b> shrieks — the <b>Nightmaw</b> is slain!`); checkWin(); }
+  else { sys('…the arrow thuds into a door. Nothing happens. The town stares at you.');
+    alivePlayers().filter(b=>!b.isYou).forEach(b=>bumpSus(b,G.you,1.4)); dayPhase(); }
+}
+
+/* --------------------------- NOMINATION & VOTE ---------------------------- */
+function startNomination(){
+  clearInterval(chatterTimer);
+  G.phase='nominate'; G.nominationOpen=true;
+  setPhase('Nominations','Tap a crewmate to accuse them — or hold your tongue.');
+  sys('⚖️ The clock demands a name. Tap a crewmate to nominate, or Pass.');
+  actions([{t:'Pass — let another speak', fn:()=>{ G.nominationOpen=false; botNominates(); }}]);
+  if(!G.you.alive){ G.nominationOpen=false; botNominates(); }
+}
+function botNominates(){
+  const bots=alivePlayers().filter(p=>!p.isYou);
+  const nominator=rand(bots); const target=topSuspect(nominator);
+  say(nominator.name, botLine('nom',target));
+  doNominate(target, nominator);
+}
+async function doNominate(target, nominator=G.you){
+  if(!target.alive){ sys('The dead cannot stand trial.'); return; }
+  G.nominationOpen=false; G.phase='vote'; actions([]);
+  target.el.classList.add('nomTarget');
+  if(nominator.isYou) say('Ash',`I nominate ${target.name}. Let the clock decide.`);
+  setPhase(`${target.name} stands accused`,'The hand sweeps. Raise yours as it passes.');
+  if(target!==G.you && !target.isYou && Math.random()<.85) say(target.name, botLine('defend',null,nominator));
+  await sleep(1500);
+
+  let votes=0; const living=alivePlayers().length; const need=Math.ceil(living/2);
+  const order=[...G.players];
+  for(const p of order){
+    if(p===target){ continue; }
+    const idx=G.players.indexOf(p);
+    setHands(Math.round(idx*12/G.players.length),0); AUDIO.tick();
+    p.el.classList.add('voting');
+    let v=false;
+    if(p.isYou){
+      if(p.alive || p.ghostVote){
+        v = await new Promise(res=>actions([
+          {t: p.alive? '✋ Vote Aye' : '👻 Ghost Vote (once ever)', cls:'blood', fn:()=>res(true)},
+          {t:'Pass', fn:()=>res(false)}]));
+        actions([]);
+        if(v && !p.alive) p.ghostVote=false;
+      }
+    } else if(p.alive){
+      const s=(p.sus&&p.sus[target.id])||0;
+      v = ROLES[p.role].team==='evil' ? (ROLES[target.role].team!=='evil' && Math.random()<.75)
+                                      : (s>1.2 || Math.random()<.25);
+    } else if(p.ghostVote && Math.random()<.3){ v=true; p.ghostVote=false; }
+    if(v){ votes++; sys(`${p.alive?'✋':'👻'} <b>${p.name}</b> votes. (${votes}/${need})`); emote(p.name,'✋'); AUDIO.tone(660,.12,'sine',.06);}
+    await sleep(850);
+    p.el.classList.remove('voting');
+  }
+  target.el.classList.remove('nomTarget');
+  if(votes>=need) await execute(target);
+  else { sys(`The hand completes its circle — only ${votes} of ${need} needed. <b>${target.name}</b> survives.`);
+         await sleep(1200); duskThenNight(); }
+}
+async function execute(p){
+  setPhase('Execution','The town has spoken.');
+  AUDIO.drum();
+  sys(`⚖️ The town condemns <b>${p.name}</b>. The trapdoor opens beneath the bell…`);
+  await sleep(2200);
+  p.alive=false; refreshSeats(); AUDIO.bell(1);
+  G.executedYesterday=p;
+  if(p.isYou) await becomeGhost('The town turned on you. They were wrong… or were they?');
+  else ghostSay(p.name, botLine('ghost'));
+  if(checkWin()) return;
+  duskThenNight();
+}
+function duskThenNight(){
+  G.phase='dusk'; sys('🌆 Shadows lengthen. Lock your doors — night comes.');
+  actions([]); setTimeout(nightPhase, 2500);
+}
+
+/* ------------------------------ GHOST MODE -------------------------------- */
+async function becomeGhost(why){
+  roleChip(); refreshSeats();
+  document.querySelector('.ghostTab').style.display='inline-block';
+  await modal(`<h2>👻 You have died</h2><p class="em">${why}</p>
+    <p>But Hollowmere is not done with you. As a <b>ghost</b> you may still:</p>
+    <p>💬 speak in <b>Ghost Chat</b> · 🗳️ cast <b>one</b> ghost vote, ever · 🕯️ <b>Haunt</b> the living</p>
+    <button class="btn ghostly" data-close="ok">Rise</button>`,{cls:'ghostcard'});
+  ghostSay('The Beyond','Welcome, spirit. The dead see much. Speak freely here — the living cannot hear.');
+}
+function addGhostActions(btns){
+  btns.push({t:'🕯️ Haunt', cls:'ghostly', fn:()=>{
+    AUDIO.owl(); AUDIO.snuff();
+    document.querySelectorAll('.crew .av').forEach(a=>{ a.style.opacity=.25; setTimeout(()=>a.style.opacity='',700); });
+    sys('🕯️ A cold wind sweeps the square. Every crewmate shivers.');
+  }});
+}
+
+/* ------------------------------- WIN/LOSE --------------------------------- */
+function checkWin(){
+  const f=fiend(); const living=alivePlayers();
+  const evilAlive=living.filter(p=>ROLES[p.role].team==='evil').length;
+  let msg=null, good=null;
+  if(!f.alive){ msg='The Nightmaw is destroyed. Dawn breaks clean over Hollowmere.'; good=true; }
+  else if(living.length<=2 || evilAlive>=living.length-evilAlive){
+    msg='Too few remain to resist. The Nightmaw devours Hollowmere whole.'; good=false; }
+  if(msg===null) return false;
+  G.over=true; clearInterval(chatterTimer); G.chatLocked=true; actions([]);
+  const youWon = (ROLES[G.you.role].team==='good')===good;
+  setPhase(good?'GOOD WINS':'EVIL WINS','');
+  AUDIO.bell(good?3:1); if(!good) AUDIO.heartbeat(3);
+  modal(`<h2>${good?'🌅 Good Triumphs':'🌑 The Fiend Triumphs'}</h2><p class="em">${msg}</p>
+    <p>You were the <b>${ROLES[G.you.role].icon} ${ROLES[G.you.role].n}</b> — ${youWon?'your side wins!':'your side falls.'}</p>
+    <p class="em">The grimoire: ${G.players.map(p=>`${p.name} = ${ROLES[p.role].n}`).join(' · ')}</p>
+    <button class="btn" data-close="ok">Play again</button>`,{cls:good?'':'evil'}).then(()=>location.reload());
+  return true;
+}
+
+/* ------------------------------ PICK MODAL -------------------------------- */
+function pickPlayers(title, prompt, count, filter){
+  return new Promise(res=>{
+    const opts=G.players.filter(filter);
+    modal(`<h2>${title}</h2><p class="em">${prompt}</p>
+      <div class="pickGrid">${opts.map(p=>`<button class="pick" data-id="${p.id}"><div class="pf" style="color:${p.color}">●</div>${p.name}</button>`).join('')}</div>
+      <button class="btn" id="confirmPick" disabled>Confirm</button>`,
+      {wire:(card,done)=>{
+        const sel=new Set();
+        card.querySelectorAll('.pick').forEach(b=>b.onclick=()=>{
+          const id=+b.dataset.id;
+          if(sel.has(id)){ sel.delete(id); b.classList.remove('sel'); }
+          else if(sel.size<count){ sel.add(id); b.classList.add('sel'); }
+          card.querySelector('#confirmPick').disabled = sel.size!==count;
+        });
+        card.querySelector('#confirmPick').onclick=()=>{ done(); res([...sel].map(id=>G.players.find(p=>p.id===id))); };
+      }});
+  });
+}
+
+/* --------------------------- AMBIENT LIFE LOOP ---------------------------- */
+let lifeTimer=null;
+function startLifeLoop(){
+  clearInterval(lifeTimer);
+  lifeTimer=setInterval(()=>{
+    if(G.over) return;
+    if(G.phase==='day'||G.phase==='nominate'){
+      const a=alivePlayers().filter(p=>!p.isYou);
+      if(a.length && Math.random()<.55) emote(rand(a).name, rand(['🤔','👀','😨','💭','🗯️','😐']));
+    }
+  }, 3600);
+}
+
+/* ------------------------------- TITLE ------------------------------------ */
+buildClock(); setHands(11,45);
+setPhase('Grim on the Bell Tower','A parody of deception, candlelight, and one very hungry Fiend.');
+modalStart();
+function roleCard(k){ const r=ROLES[k]; const evil=r.team==='evil';
+  return `<button class="pick ${evil?'evilRole':''}" data-role="${k}"><div class="pf">${r.icon}</div>${r.n}<div class="pd">${evil?'Evil':'Good'}</div></button>`;
+}
+function modalStart(){
+  const good=Object.keys(ROLES).filter(k=>ROLES[k].team==='good');
+  const evil=Object.keys(ROLES).filter(k=>ROLES[k].team==='evil');
+  modal(`<h2>🕰️ Grim on the Bell Tower</h2>
+    <p class="em">Eight souls. One Fiend. Every midnight, the bell tolls for someone.</p>
+    <p>Talk by day, whisper in corners, vote by the sweep of the clock hand. Survive — or haunt. You play one crewmate; the AI plays the rest.</p>
+    <div class="pickGrid" style="margin-bottom:6px">
+      <button class="pick" id="mRandom" style="min-width:180px;border-color:var(--candle)"><div class="pf">🎲</div>Surprise me — Random role</button>
+    </div>
+    <div class="teamLbl">Choose a Good role</div>
+    <div class="roleGrid">${good.map(roleCard).join('')}</div>
+    <div class="teamLbl evil">…or walk with Evil</div>
+    <div class="roleGrid">${evil.map(roleCard).join('')}</div>
+    <p class="em" style="font-size:12px">Sound on for the full effect 🔔 · Tap <b>?</b> anytime for the rules</p>`,
+    {wire:(card,done)=>{
+      const start=choice=>{ AUDIO.ensure(); AUDIO.startAmbient(true); done(); newGame(choice); };
+      card.querySelector('#mRandom').onclick=()=>start('random');
+      card.querySelectorAll('[data-role]').forEach(b=>b.onclick=()=>start(b.dataset.role));
+    }});
+}
+</script>
+</body>
+</html>
